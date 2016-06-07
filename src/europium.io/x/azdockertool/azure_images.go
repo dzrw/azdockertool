@@ -1,16 +1,16 @@
 package azdockertool
 
 import (
-	"fmt"
 	sdk "github.com/Azure/azure-sdk-for-go/storage"
+	log "github.com/Sirupsen/logrus"
 	"sort"
 	"strings"
 	"time"
 )
 
 const (
-	imageSearchPrefix string = "repositories/"
-	azureDateLayout string = time.RFC1123
+	imageSearchPrefix string = "refs/"
+	azureDateLayout   string = time.RFC1123
 )
 
 func (ar *absremote) Images() ([]*ImageInfo, error) {
@@ -19,45 +19,52 @@ func (ar *absremote) Images() ([]*ImageInfo, error) {
 	// call azure
 	res, err := ar.blobStorage.ListBlobs(ar.config.Container, sdk.ListBlobsParameters{Prefix: imageSearchPrefix})
 	if err != nil {
-		return nil, fmt.Errorf("remote unavailable: %s", err)
+		return nil, err
 	}
 
 	if ar.config.Verbose {
-	 	fmt.Printf("found %d matching blobs\n", len(res.Blobs))
+		log.WithFields(log.Fields{
+			"count": len(res.Blobs),
+		}).Info("found matching images")
 	}
 
 	// process the response
 	for _, item := range res.Blobs {
 
-		// too verbose
-		// if ar.config.Verbose {
-		// 	fmt.Printf("parsing '%s'\n", item.Name)
-		// }
+		id, err := ar.GetBlobAsString(item.Name)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"path": item.Name,
+			}).Warn("skipping due to missing image pointer")
+			continue
+		}
 
 		s := strings.TrimPrefix(item.Name, imageSearchPrefix)
 		parts := strings.Split(s, "/")
 
 		n := len(parts)
 		if n < 2 {
-			fmt.Printf("skipping due to malformed image path: '%s'\n", item.Name)
+			log.WithFields(log.Fields{
+				"path": item.Name,
+				"id":   id,
+			}).Warn("skipping due to malformed image path")
 			continue
 		}
 
-		tag := parts[n - 1]
-		img := strings.Join(parts[:(n - 1)], "/")
+		tag := parts[n-1]
+		img := strings.Join(parts[:(n-1)], "/")
 
 		modified, err := time.Parse(azureDateLayout, item.Properties.LastModified)
 		if err != nil {
-			fmt.Printf("skipping due to malformed last modified: '%s' at '%s'\n", item.Properties.LastModified, item.Name)
+			log.WithFields(log.Fields{
+				"path":         item.Name,
+				"id":           id,
+				"LastModified": item.Properties.LastModified,
+			}).Warn("skipping due to malformed last modified")
 			continue
 		}
 
-		// too verbose
-		// if ar.config.Verbose {
-		// 	fmt.Printf("found image '%s:%s'\n", img, tag)
-		// }
-
-		coll = append(coll, &ImageInfo{img, tag, modified, item.Name})
+		coll = append(coll, &ImageInfo{img, tag, modified, item.Name, ID(id)})
 	}
 
 	// sort, because we aren't monsters
@@ -69,9 +76,9 @@ func (ar *absremote) Images() ([]*ImageInfo, error) {
 // ByRepositoryThenTag implements sort.Interface for []*ImageInfo based on the Name, Tag fields
 type ByRepositoryThenTag []*ImageInfo
 
-func (a ByRepositoryThenTag) Len() int           { return len(a) }
-func (a ByRepositoryThenTag) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByRepositoryThenTag) Less(i, j int) bool { 
+func (a ByRepositoryThenTag) Len() int      { return len(a) }
+func (a ByRepositoryThenTag) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ByRepositoryThenTag) Less(i, j int) bool {
 	n := strings.Compare(a[i].Repository, a[j].Repository)
 	if n == 0 {
 		n = strings.Compare(a[i].Tag, a[j].Tag)

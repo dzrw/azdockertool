@@ -3,7 +3,9 @@ package main
 import (
 	lib "europium.io/x/azdockertool"
 	"fmt"
+	log "github.com/Sirupsen/logrus"
 	"github.com/docopt/docopt-go"
+	"math/rand"
 	"os"
 	"text/tabwriter"
 	"time"
@@ -13,6 +15,10 @@ const (
 	ProgramName    string = "azdockertool"
 	ProgramVersion string = "azdockertool version 0.0.1"
 )
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 func main() {
 	err := doit()
@@ -62,8 +68,8 @@ func doit() (err error) {
 			fmt.Printf("pushing image '%s'\n", image)
 		}
 
-		fmt.Printf("Would push '%s' if this was implemented", image)
-		os.Exit(2)
+		push(conf, image)
+		return nil
 	}
 
 	// dispatch pull
@@ -250,7 +256,6 @@ Environment configurations are loaded from ~/.azdockertool.toml.
 	return dict, err
 }
 
-
 // lists remote images
 func images(config *lib.Config) {
 	remote, err := lib.NewAzureBlobStorageRemote(config)
@@ -272,14 +277,53 @@ func images(config *lib.Config) {
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 	defer w.Flush()
 
-	fmt.Fprintf(w, "REPOSITORY\tTAG\tLAST MODIFIED\n")
+	fmt.Fprintf(w, "REPOSITORY\tTAG\tIMAGE ID\tLAST MODIFIED\n")
 
 	for _, i := range images {
-		line := fmt.Sprintf("%s\t%s\t%s", i.Repository, i.Tag, i.LastModified.Format(time.RFC822))
+		line := fmt.Sprintf("%s\t%s\t%s\t%s", i.Repository, i.Tag, i.Id.Short(), i.LastModified.Format(time.RFC822))
 		fmt.Fprintln(w, line)
 	}
 }
 
+// exports a local image:tag to Azure Blob Storage
+func push(config *lib.Config, image string) {
+	client, err := lib.NewDockerClient(config)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	exporter := func(dir, repository string) error {
+		return lib.DockerSave(client, repository, dir)
+	}
+
+	remote, err := lib.NewAzureBlobStorageRemote(config)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	// figure out where to stage the uploads
+	localStorage, err := lib.NewLocalStorage()
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	// FIXME: Uncomment before using a lot.
+	//defer localStorage.Dispose()
+
+	// upload the individual layers to Azure blob Storage
+	_, err = remote.Push(image, exporter, localStorage)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"image":  image,
+			"reason": err.Error(),
+		}).Error("could not publish image")
+		os.Exit(1)
+		return
+	}
+}
 
 // pulls a remote image:tag into the local Docker daemon
 func pull(config *lib.Config, image string) {
@@ -311,7 +355,7 @@ func pull(config *lib.Config, image string) {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	
+
 	// FIXME: Uncomment before using a lot.
 	//defer localStorage.Dispose()
 
@@ -334,18 +378,3 @@ func pull(config *lib.Config, image string) {
 		return
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

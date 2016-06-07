@@ -2,11 +2,11 @@ package azdockertool
 
 import (
 	"encoding/json"
-	"path/filepath"
 	"fmt"
 	sdk "github.com/Azure/azure-sdk-for-go/storage"
-	"strings"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
 func (ar *absremote) Pull(query string, known func(id ID) (bool, error), localStorage *LocalStorage) (*PullResult, error) {
@@ -56,7 +56,7 @@ func (ar *absremote) Pull(query string, known func(id ID) (bool, error), localSt
 		return nil, err
 	}
 
-	return &PullResult{root,repo,tag,workdir}, nil
+	return &PullResult{root, repo, tag, workdir}, nil
 }
 
 // Returns a repository and a tag from an docker image ID
@@ -93,7 +93,7 @@ func (ar *absremote) discoverLayers(root ID, known func(id ID) (bool, error)) ([
 		curr = ID(node.Parent)
 	}
 
-	return coll, nil  
+	return coll, nil
 }
 
 // Queries the root layer index to find a corresponding layer identifier, if any
@@ -121,7 +121,7 @@ func (ar *absremote) findLayerByHash(hash string) (ID, error) {
 	}
 
 	if len(res.Blobs) == 0 {
-		return "", ErrNoSuchImage 
+		return "", ErrNoSuchImage
 	} else if len(res.Blobs) > 1 {
 		return "", ErrMultipleResults
 	} else {
@@ -131,7 +131,7 @@ func (ar *absremote) findLayerByHash(hash string) (ID, error) {
 }
 
 type layer struct {
-	Id string `json:"id"`
+	Id     string `json:"id"`
 	Parent string `json:"parent"`
 }
 

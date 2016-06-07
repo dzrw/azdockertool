@@ -5,21 +5,26 @@ import (
 )
 
 type ImageInfo struct {
-	Repository string
-	Tag string
+	Repository   string
+	Tag          string
 	LastModified time.Time
-	Root string
+	Root         string
+	Id           ID
 }
 
 type PullResult struct {
-	Id ID
+	Id         ID
 	Repository string
-	Tag string
-	Src string
+	Tag        string
+	Src        string
+}
+
+type PushResult struct {
 }
 
 type Remote interface {
 	Images() ([]*ImageInfo, error)
 	Pull(query string, known func(id ID) (bool, error), localStorage *LocalStorage) (*PullResult, error)
 	// Graph() (*LayerGraph, error)
+	Push(query string, exporter func(dir, repository string) error, localStorage *LocalStorage) (*PushResult, error)
 }

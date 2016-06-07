@@ -2,15 +2,15 @@ package azdockertool
 
 import (
 	"errors"
-	"github.com/BurntSushi/toml"
-	"os"
-	"os/user"
-	"path/filepath"
 	"fmt"
+	"github.com/BurntSushi/toml"
+	homedir "github.com/mitchellh/go-homedir"
+	"os"
+	"path/filepath"
 )
 
 var (
-	ErrEnvironmentNotFound = errors.New("undefined environment; check your configuration")
+	ErrEnvironmentNotFound    = errors.New("undefined environment; check your configuration")
 	ErrCannotAccessConfigFile = errors.New("configuration unavailable")
 )
 
@@ -24,37 +24,37 @@ container = "YOUR_CONTAINER"
 
 type Config struct {
 	AccountName string
-	AccountKey string
-	Container string
-	Verbose bool
-	HomeDir string
-	Docker *DockerConfig
+	AccountKey  string
+	Container   string
+	Verbose     bool
+	HomeDir     string
+	Docker      *DockerConfig
 }
 
 type DockerConfig struct {
-	Host string
-	UseTLS bool
-	CaCertPath string
-	CertPath string
+	Host           string
+	UseTLS         bool
+	CaCertPath     string
+	CertPath       string
 	PrivateKeyPath string
 }
 
 func GetConfig(environment string, verbose bool) (*Config, error) {
 
-	usr, err := user.Current()
+	dir, err := homedir.Dir()
 	if err != nil {
 		return nil, errors.New("cannot get homedir")
 	}
 
-	configFile, err := ensureConfigFileExists(usr.HomeDir, verbose)
+	configFile, err := ensureConfigFileExists(dir, verbose)
 	if err != nil {
 		return nil, err
 	}
 
 	type envInfo struct {
-		AccountName      string `toml:"storage_account_name"`
-		AccountKey string `toml:"storage_account_access_key"`
-		Container string `toml:"container"`
+		AccountName string `toml:"storage_account_name"`
+		AccountKey  string `toml:"storage_account_access_key"`
+		Container   string `toml:"container"`
 	}
 
 	var config map[string]envInfo
@@ -68,17 +68,16 @@ func GetConfig(environment string, verbose bool) (*Config, error) {
 	}
 
 	cfg := &Config{
-		AccountName: env.AccountName, 
-		AccountKey: env.AccountKey, 
-		Container: env.Container, 
-		Verbose: verbose, 
-		HomeDir: usr.HomeDir,
-		Docker: getDockerConfig(usr.HomeDir),
+		AccountName: env.AccountName,
+		AccountKey:  env.AccountKey,
+		Container:   env.Container,
+		Verbose:     verbose,
+		HomeDir:     dir,
+		Docker:      getDockerConfig(dir),
 	}
 
 	return cfg, nil
 }
-
 
 func ensureConfigFileExists(homedir string, verbose bool) (string, error) {
 	path := filepath.Join(homedir, ".azdockertool.toml")
@@ -109,7 +108,7 @@ func getDockerConfig(homedir string) *DockerConfig {
 		host = "unix:///var/run/docker.sock"
 	}
 
-    certdir := os.Getenv("DOCKER_CERT_PATH")
+	certdir := os.Getenv("DOCKER_CERT_PATH")
 	if certdir == "" {
 		certdir = filepath.Join(homedir, ".docker")
 	}
@@ -120,10 +119,10 @@ func getDockerConfig(homedir string) *DockerConfig {
 
 	if allPathsExist([]string{ca, cert, priv}) {
 		return &DockerConfig{
-			Host: host,
-			UseTLS: true, 
-			CaCertPath: ca,
-			CertPath: cert,
+			Host:           host,
+			UseTLS:         true,
+			CaCertPath:     ca,
+			CertPath:       cert,
 			PrivateKeyPath: priv,
 		}
 	}
@@ -137,7 +136,7 @@ func allPathsExist(coll []string) bool {
 		if err != nil {
 			return false
 		}
-	} 
+	}
 
 	return true
 }
